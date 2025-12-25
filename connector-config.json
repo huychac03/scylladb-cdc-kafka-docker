@@ -1,0 +1,23 @@
+{
+  "name": "scylla-cdc-connector",
+  "config": {
+    "connector.class": "com.scylladb.cdc.debezium.connector.ScyllaConnector",
+    "scylla.cluster.ip.addresses": "scylla:9042",
+    "scylla.user": "",
+    "scylla.password": "",
+    "scylla.table.names": "bino_post.posts",
+    "topic.prefix": "posts-cdc",
+    "tasks.max": "1",
+    "heartbeat.interval.ms": "30000",
+    "scylla.confidence.window.size": "10",
+
+    "key.converter": "org.apache.kafka.connect.json.JsonConverter",
+    "key.converter.schemas.enable": "false",
+    "value.converter": "org.apache.kafka.connect.json.JsonConverter",
+    "value.converter.schemas.enable": "false",
+
+    "transforms": "flatten",
+    "transforms.flatten.type": "com.scylladb.cdc.debezium.connector.transforms.ScyllaFlattenColumns",
+    "transforms.extract.drop.tombstones": "false"
+  }
+}

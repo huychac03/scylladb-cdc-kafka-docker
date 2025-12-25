@@ -1,0 +1,5 @@
+# Ignore the 'plugins' folder in the root directory
+/plugins/
+
+# Ignore the '.idea' folder used by IntelliJ/JetBrains IDEs
+/.idea/

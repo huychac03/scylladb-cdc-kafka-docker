@@ -1,0 +1,107 @@
+services:
+  scylla:
+    image: scylladb/scylla:latest
+    container_name: scylla
+    restart: unless-stopped
+    command: >
+      --smp 3
+      --memory 8G
+      --overprovisioned 1
+    ports:
+      - "9042:9042"   # CQL
+      - "9180:9180"   # Prometheus metrics
+    volumes:
+      - scylla-data:/var/lib/scylla
+    networks:
+      - bino-network
+
+  broker:
+    image: confluentinc/cp-kafka:8.1.1
+    hostname: broker
+    container_name: broker
+    ports:
+      - "9092:9092"
+      - "9101:9101"
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: 'CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT'
+      KAFKA_ADVERTISED_LISTENERS: 'PLAINTEXT://broker:29092,PLAINTEXT_HOST://localhost:9092'
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_JMX_PORT: 9101
+      KAFKA_JMX_HOSTNAME: localhost
+      KAFKA_PROCESS_ROLES: 'broker,controller'
+      KAFKA_CONTROLLER_QUORUM_VOTERS: '1@broker:29093'
+      KAFKA_LISTENERS: 'PLAINTEXT://broker:29092,CONTROLLER://broker:29093,PLAINTEXT_HOST://0.0.0.0:9092'
+      KAFKA_INTER_BROKER_LISTENER_NAME: 'PLAINTEXT'
+      KAFKA_CONTROLLER_LISTENER_NAMES: 'CONTROLLER'
+      KAFKA_LOG_DIRS: '/tmp/kraft-combined-logs'
+      # Replace CLUSTER_ID with a unique base64 UUID using "bin/kafka-storage.sh random-uuid"
+      # See https://docs.confluent.io/kafka/operations-tools/kafka-tools.html#kafka-storage-sh
+      CLUSTER_ID: 'MkU3OEVBNTcwNTJENDM2Qk'
+
+  schema-registry:
+    image: confluentinc/cp-schema-registry:8.1.1
+    hostname: schema-registry
+    container_name: schema-registry
+    depends_on:
+      - broker
+    ports:
+      - "8081:8081"
+    environment:
+      SCHEMA_REGISTRY_HOST_NAME: schema-registry
+      SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS: 'broker:29092'
+      SCHEMA_REGISTRY_LISTENERS: http://0.0.0.0:8081
+
+
+  connector:
+    image: confluentinc/cp-kafka-connect:8.0.3
+    container_name: kafka-connector
+    restart: always
+    depends_on:
+      kafka:
+        condition: service_healthy
+      scylla:
+        condition: service_healthy
+    ports:
+      - "8083:8083"
+    volumes:
+      - ./plugins:/usr/share/java/kafka-connect-scylla-cdc
+    environment:
+      CONNECT_BOOTSTRAP_SERVERS: 'kafka:29092'
+      CONNECT_REST_ADVERTISED_HOST_NAME: connect
+      CONNECT_REST_PORT: 8083
+      CONNECT_GROUP_ID: scylla-cdc-group
+      CONNECT_CONFIG_STORAGE_TOPIC: scylla-cdc-config
+      CONNECT_OFFSET_STORAGE_TOPIC: scylla-cdc-offset
+      CONNECT_STATUS_STORAGE_TOPIC: scylla-cdc-status
+      CONNECT_CONFIG_STORAGE_REPLICATION_FACTOR: 1
+      CONNECT_OFFSET_STORAGE_REPLICATION_FACTOR: 1
+      CONNECT_STATUS_STORAGE_REPLICATION_FACTOR: 1
+      CONNECT_KEY_CONVERTER: org.apache.kafka.connect.json.JsonConverter
+      CONNECT_VALUE_CONVERTER: org.apache.kafka.connect.json.JsonConverter
+      CONNECT_KEY_CONVERTER_SCHEMAS_ENABLE: 'false'
+      CONNECT_VALUE_CONVERTER_SCHEMAS_ENABLE: 'false'
+      CONNECT_INTERNAL_KEY_CONVERTER: org.apache.kafka.connect.json.JsonConverter
+      CONNECT_INTERNAL_VALUE_CONVERTER: org.apache.kafka.connect.json.JsonConverter
+      CONNECT_PLUGIN_PATH: /usr/share/java,/usr/share/confluent-hub-components,/usr/share/java/kafka-connect-scylla-cdc
+      CONNECT_OFFSET_FLUSH_INTERVAL_MS: 10000
+    networks:
+      - bino-network
+    # healthcheck:
+    #   test: ["CMD-SHELL", "curl -f http://localhost:8083/ || exit 1"]
+    #   interval: 30s
+    #   timeout: 10s
+    #   retries: 5
+
+
+networks:
+  bino-network:
+    driver: bridge
+
+volumes:
+  scylla-data:
+
+
