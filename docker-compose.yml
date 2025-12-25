@@ -60,11 +60,6 @@ services:
     image: confluentinc/cp-kafka-connect:8.0.3
     container_name: kafka-connector
     restart: always
-    depends_on:
-      kafka:
-        condition: service_healthy
-      scylla:
-        condition: service_healthy
     ports:
       - "8083:8083"
     volumes:
